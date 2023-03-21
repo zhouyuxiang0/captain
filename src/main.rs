@@ -5,10 +5,12 @@ use actix_web::{
     self, error, get, middleware, post, web, App, Error, HttpResponse, HttpServer, Responder,
 };
 use actix_web_lab::respond::Html;
-use include_dir::{include_dir, Dir};
+use rust_embed::RustEmbed;
 use tera::Tera;
 
-static TEMPLATES_DIR: Dir = include_dir!("templates");
+#[derive(RustEmbed)]
+#[folder = "templates/"]
+struct Templates;
 
 #[actix_web::main]
 async fn main() -> io::Result<()> {
@@ -16,15 +18,9 @@ async fn main() -> io::Result<()> {
     tracing_subscriber::fmt::init();
     // tera
     HttpServer::new(|| {
-        let mut tera = Tera::new("./public/*").unwrap();
-        tera.add_raw_templates(vec![(
-            "index.html",
-            TEMPLATES_DIR
-                .get_file("index.html")
-                .unwrap()
-                .contents_utf8()
-                .unwrap(),
-        )]);
+        let mut tera = Tera::new("./templates/*").unwrap();
+        tera.add_raw_template("index.html", handle_embedded_file("index.html").as_str())
+            .unwrap();
         App::new()
             // .service(Files::new)
             .app_data(web::Data::new(tera))
@@ -41,13 +37,12 @@ async fn hello(
     tmpl: web::Data<tera::Tera>,
     query: web::Query<HashMap<String, String>>,
 ) -> Result<impl Responder, Error> {
-    let mut context = tera::Context::new();
-    context.insert("test", &"测试");
-    let string = tmpl
+    let mut context = tera::Context::default();
+    context.insert("test", "val");
+    let s = tmpl
         .render("index.html", &context)
         .map_err(|_| error::ErrorInternalServerError("Template error"))?;
-    // let h = tmpl.render_str("{}", &mut tera::Context::new());
-    Ok(Html(string))
+    Ok(Html(s))
 }
 
 #[cfg(test)]
@@ -64,4 +59,16 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success())
     }
+}
+
+fn handle_embedded_file(path: &str) -> String {
+    let html = Templates::get(path).unwrap();
+    let b = std::str::from_utf8(html.data.as_ref()).unwrap();
+    String::from(b)
+    // match Templates::get(path) {
+    //     Some(content) => HttpResponse::Ok()
+    //         .content_type(from_path(path).first_or_octet_stream().as_ref())
+    //         .body(content.data.into_owned()),
+    //     None => HttpResponse::NotFound().body("404 Not Found"),
+    // }
 }
