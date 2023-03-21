@@ -16,7 +16,7 @@ async fn main() -> io::Result<()> {
     tracing_subscriber::fmt::init();
     // tera
     HttpServer::new(|| {
-        let mut tera = Tera::new("./*").unwrap();
+        let mut tera = Tera::new("./public/*").unwrap();
         tera.add_raw_templates(vec![(
             "index.html",
             TEMPLATES_DIR
